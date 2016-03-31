@@ -20,7 +20,8 @@ data Pair a where
 data Pear a where
   Pear :: a -> b -> Pear a
 
---pare (Pear a b) = (a, b)  -- doesn't compile
+-- Uncomment me and find out what happens!
+-- pare (Pear a b) = (a, b)  -- doesn't compile
 
 halfPare :: Pear a -> a
 halfPare (Pear a _) = a  -- works just fine
