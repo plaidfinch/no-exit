@@ -89,6 +89,7 @@ enqueueAll = foldr enqueue
 
 -- Other implementations
 
+-- A queue with non-persistent amortized O(1) performance
 twoListQueue :: Queue a
 twoListQueue =
   Queue { _insides = ([], [])
@@ -105,6 +106,7 @@ twoListQueue =
 prop_twoListQueue_spec :: [QueueOp Int] -> Property
 prop_twoListQueue_spec = compareQueues slowQueue twoListQueue
 
+-- A queue with persistent worst-case O(1) performance
 -- Chris Okasaki: "Simple and Efficient Purely Functional Queues and Deques"
 -- J. Functional Programming 5(4): 583–592, October 1995
 okasakiQueue :: Queue a
