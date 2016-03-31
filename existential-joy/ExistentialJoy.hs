@@ -56,9 +56,9 @@ makeThirdSum ThreeInts{..} =
 -- Existential types are abstract types (FILL IN)
 
 data Queue a where
-  Queue :: { _enqueue :: a -> s -> s
-           , _dequeue :: s -> Maybe (a, s)
-           , _insides :: s
+  Queue :: { _enqueue :: a -> q -> q
+           , _dequeue :: q -> Maybe (a, q)
+           , _insides :: q
            } -> Queue a
 
 slowQueue :: Queue a
