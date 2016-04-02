@@ -8,7 +8,6 @@ import Data.Function
 import Data.Maybe
 
 import Test.QuickCheck
-import Debug.Trace
 
 -- GADTs
 
@@ -35,27 +34,32 @@ data ThreeInts where
                , second :: Integer
                , third  :: Integer } -> ThreeInts
 
-makeThirdSum :: ThreeInts -> ThreeInts
+makeThirdSum, makeThirdSum', makeThirdSum'', makeThirdSum'''  :: ThreeInts -> ThreeInts
 
 -- No special syntax sugar: very verbose!
---makeThirdSum ThreeInts{first = first, second = second, third = third} =
---   ThreeInts { first  = first
---             , second = second
---             , third  = first + second + third }
+makeThirdSum ThreeInts{first = first, second = second, third = third} =
+  ThreeInts { first  = first
+            , second = second
+            , third  = first + second + third }
 
 -- With NamedFieldPuns:
---makeThirdSum ThreeInts{first, second, third} =
---   ThreeInts { first
---             , second
---             , third = first + second + third }
-
--- With NamedFieldPuns and RecordWildCards:
-makeThirdSum ThreeInts{..} =
+makeThirdSum' ThreeInts{first, second, third} =
   ThreeInts { first
             , second
             , third = first + second + third }
 
--- Existential types are abstract types (FILL IN)
+-- With NamedFieldPuns and RecordWildCards:
+makeThirdSum'' ThreeInts{..} =
+  ThreeInts { first
+            , second
+            , third = first + second + third }
+
+-- We can even use a record wildcard when *constructing* a record:
+makeThirdSum''' ThreeInts{..} =
+  ThreeInts { third = first + second + third, .. }
+
+-- Existential types are abstract types
+-- Objects are abstract types, too!
 
 data Queue a where
   Queue :: { _enqueue :: a -> q -> q
@@ -72,18 +76,15 @@ slowQueue = Queue tack uncons []
 
 enqueue :: a -> Queue a -> Queue a
 enqueue a Queue{..} =
-  Queue { _enqueue
-        , _dequeue
-        , _insides = _enqueue a _insides }
+  Queue { _insides = _enqueue a _insides, .. }
 
 dequeue :: Queue a -> Maybe (a, Queue a)
 dequeue Queue{..} =
-  case _dequeue _insides of
-    Nothing -> Nothing
-    Just (a, rest) ->
-      Just (a, Queue { _enqueue
-                     , _dequeue
-                     , _insides = rest })
+  -- case _dequeue _insides of
+  --   Nothing -> Nothing
+  --   Just (a, rest) ->
+  --     Just (a, Queue { _insides = rest, .. })
+  (fmap . fmap) (Queue _enqueue _dequeue) (_dequeue _insides)
 
 queueToList :: Queue a -> [a]
 queueToList = unfoldr dequeue
@@ -91,21 +92,77 @@ queueToList = unfoldr dequeue
 enqueueAll :: Queue a -> [a] -> Queue a
 enqueueAll = foldr enqueue
 
+-- But before we go on to make better queues...
+-- Testing queue implementations for correctness
+
+-- An operation on a queue
+data QueueOp a where
+  Enqueue :: a -> QueueOp a
+  Dequeue :: QueueOp a
+  deriving (Eq, Ord, Show)
+
+-- How to make arbitrary operations
+instance Arbitrary a => Arbitrary (QueueOp a) where
+  arbitrary = do
+    coin <- arbitrary
+    if coin
+       then return Dequeue
+       else do
+         a <- arbitrary
+         return (Enqueue a)
+
+-- Run a bunch of queue operations on a queue, and hand back the results and the queue
+runQueueOps :: Queue a -> [QueueOp a] -> ([Maybe a], Queue a)
+runQueueOps queue instructions =
+  case instructions of
+    [] -> ([], queue)
+    (op : ops) ->
+      let (ma, queue')   = runOp op
+          (mas, queue'') = runQueueOps queue' ops
+      in (ma : mas, queue'')
+  where
+    runOp Dequeue =
+      case dequeue queue of
+        Nothing          -> (Nothing, queue)
+        Just (a, queue') -> (Just a, queue')
+    runOp (Enqueue a) =
+      (Nothing, enqueue a queue)
+
+-- A higher order property stating that for all sequences of queue operations,
+-- the two specified queues return the same results and have the same observable state
+-- (observable state here: what happens when you convert the queue to a list)
+compareQueues :: Eq a => Queue a -> Queue a -> [QueueOp a] -> Property
+compareQueues q1 q2 ops =
+  let (results1, q1') = runQueueOps q1 ops
+      (results2, q2') = runQueueOps q2 ops
+  in
+  queueToList q1  ==  queueToList q2
+                  ==>
+         results1 == results2
+                  &&
+  queueToList q1' == queueToList q2'
+
 -- Other implementations
 
 -- A queue with non-persistent amortized O(1) performance
+
+-- We enqueue into the "back" list and dequeue from the "front" list
+-- When we run out of elements in the "front" list, we reverse the "back"
+-- list and set it to be the "front" list. But this only happens once
+-- every O(n) operations, and since it only takes O(n) time, the amortized
+-- performance of the queue is O(1).
 twoListQueue :: Queue a
 twoListQueue =
   Queue { _insides = ([], [])
-        , _enqueue = \a (front, back) -> (front, a : back)
+        , _enqueue = \a (front, back) -> (front, a : back)     -- enqueue into the back
         , _dequeue = \(front, back) ->
                        case (front, back) of
-                         ([], []) -> Nothing
-                         ([], _)  ->
-                           let (a : front') = reverse back in
-                           Just (a, (front', []))
-                         (a : front', _) ->
-                           Just (a, (front', back)) }
+                         ([], []) -> Nothing                   -- queue is empty if both lists are
+                         (a : front', _) ->                    -- otherwise, we will
+                           Just (a, (front', back))            -- dequeue from the front,
+                         ([], _)  ->                           -- or if the front is empty,
+                           let (a : front') = reverse back in  -- reverse the back
+                           Just (a, (front', [])) }            -- and set it as the front
 
 prop_twoListQueue_spec :: [QueueOp Integer] -> Property
 prop_twoListQueue_spec = compareQueues slowQueue twoListQueue
@@ -113,6 +170,10 @@ prop_twoListQueue_spec = compareQueues slowQueue twoListQueue
 -- A queue with persistent worst-case O(1) performance
 -- Chris Okasaki: "Simple and Efficient Purely Functional Queues and Deques"
 -- J. Functional Programming 5(4): 583–592, October 1995
+
+-- The trick: instead of reversing the "back" list all at once, we reverse it
+-- one step every operation, so that when we need it reversed, we've already
+-- done it!
 okasakiQueue :: Queue a
 okasakiQueue =
   Queue { _insides = ([], [], [])
@@ -126,14 +187,14 @@ okasakiQueue =
   where
     -- makeEq (fs bs as) reasserts the invariant that |fs| - |bs| = |as|,
     -- as it is called exactly when |fs| decreases or |bs| increases.
-    -- Why do we care? Incrementally forcing the list as' (which is always a
-    -- tail of fs) allows us to distribute the reversal of the back of the
-    -- queue across every operation equally, thus allowing every operation
-    -- to be worst-case O(1).
     makeEq (fs, bs, (_ : as')) = (fs, bs, as')
     makeEq (fs, bs, []) =
       let fs' = appendReverse fs bs
       in (fs', [], fs')
+    -- Why do we care? Incrementally forcing the list as' (which is always a
+    -- tail of fs) allows us to distribute the reversal of the back of the
+    -- queue across every operation equally, thus allowing every operation
+    -- to be worst-case O(1).
 
 -- Maximally lazy computation of: xs ++ reverse ys
 -- So long as |ys| <= |xs|, each cell of (appendReverse xs ys) takes
@@ -158,77 +219,34 @@ prop_okasakiQueue_spec = compareQueues slowQueue okasakiQueue
 
 -- Modifying the implementation of an existing queue
 
+-- Drops every other enqueue operation
 everyOther :: Queue a -> Queue a
 everyOther Queue{..} =
-  Queue { _insides = (True, _insides)
+  Queue { _insides = (True,     -- flag to tell us whether to accept an enqueue
+                      _insides) -- the insides of whatever queue we're wrapping (opaque)
         , _enqueue = \a (b, s) ->
-                    if b then (not b, _enqueue a s)
-                         else (not b, s)
-        , _dequeue  = \(b, s) ->
-                    case _dequeue s of
-                      Just (a, rest) -> Just (a, (not b, rest))
-                      Nothing -> Nothing }
+                       if b then (not b, _enqueue a s)  -- only enqueue if flag is True
+                            else (not b, s)             -- but flip the flag regardless
+        , _dequeue = \(b, s) ->
+                       case _dequeue s of
+                         Just (a, rest) -> Just (a, (not b, rest))  -- flip the flag on dequeue
+                         Nothing -> Nothing }
 
-doublePush :: Queue a -> Queue a
-doublePush Queue{..} =
-  Queue { _insides
-        , _dequeue
-        , _enqueue = \a s -> _enqueue a (_enqueue a s) }
+-- Enqueues twice anything you tell it to enqueue
+doubleEnqueue :: Queue a -> Queue a
+doubleEnqueue Queue{..} =
+  Queue { _enqueue = \a -> _enqueue a . _enqueue a, .. }
 
 -- Claim: doublePush . everyOther === id
-prop_doublePush_everyOther_id :: [QueueOp Integer] -> Property
-prop_doublePush_everyOther_id =
-  compareQueues okasakiQueue (doublePush (everyOther okasakiQueue))
+prop_doubleEnqueue_everyOther_id :: [QueueOp Integer] -> Property
+prop_doubleEnqueue_everyOther_id =
+  compareQueues okasakiQueue (doubleEnqueue (everyOther okasakiQueue))
 
+
+-- A silly show instance for queues, just so we can peek at them in the REPL
 instance (Show a) => Show (Queue a) where
   show queue =
     "<<" ++ intercalate "," (map show $ queueToList queue) ++ ">>"
-
--- Testing queue implementations for correctness
-
-data QueueOp a where
-  Enqueue :: a -> QueueOp a
-  Dequeue :: QueueOp a
-  deriving (Eq, Ord, Show)
-
-instance Arbitrary a => Arbitrary (QueueOp a) where
-  arbitrary = do
-    coin <- arbitrary
-    if coin
-       then return Dequeue
-       else do
-         a <- arbitrary
-         return (Enqueue a)
-
-runQueueOps :: Queue a -> [QueueOp a] -> ([Maybe a], Queue a)
-runQueueOps queue instructions =
-  case instructions of
-    [] -> ([], queue)
-    (op : ops) ->
-      let (ma, queue')   = runOp op
-          (mas, queue'') = runQueueOps queue' ops
-      in (ma : mas, queue'')
-  where
-    runOp Dequeue =
-      case dequeue queue of
-        Nothing          -> (Nothing, queue)
-        Just (a, queue') -> (Just a, queue')
-    runOp (Enqueue a) =
-      (Nothing, enqueue a queue)
-
-compareQueues :: Eq a => Queue a -> Queue a -> [QueueOp a] -> Property
-compareQueues q1 q2 ops =
-  let (results1, q1') = runQueueOps q1 ops
-      (results2, q2') = runQueueOps q2 ops
-  in
-  queueToList q1  ==  queueToList q2
-                  ==>
-         results1 == results2
-                  &&
-  queueToList q1' == queueToList q2'
-
-(#) :: a -> [a] -> [a]
-x # xs = trace "\n:" (x : xs)
 
 return []
 runTests :: IO Bool
