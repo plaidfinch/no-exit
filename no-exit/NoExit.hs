@@ -261,6 +261,9 @@ prop_doubleEnqueue_everyOther_id :: [QueueOp Integer] -> Property
 prop_doubleEnqueue_everyOther_id =
   compareQueues okasakiQueue (doubleEnqueue (everyOther okasakiQueue))
 
+--------------------------
+-- Miscellaneous things --
+--------------------------
 
 -- A silly show instance for queues, just so we can peek at them in the REPL
 instance (Show a) => Show (Queue a) where
