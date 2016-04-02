@@ -9,6 +9,10 @@ import Data.Maybe
 
 import Test.QuickCheck
 
+------------------
+-- Introduction --
+------------------
+
 -- GADTs
 
 data Pair a where
@@ -19,22 +23,28 @@ data Pair a where
 data Pear a where
   Pear :: a -> b -> Pear a
 
+-- Huh! That type-checked...?
+
 -- Uncomment me and find out what happens!
 -- pare (Pear a b) = (a, b)  -- doesn't compile
 
 halfPare :: Pear a -> a
 halfPare (Pear a _) = a  -- works just fine
 
--- Curry Howard, existential types (FILL IN)
+-- Talk about the forall-exists duality re: Curry-Howard
 
--- Some syntactic extensions
+-------------------------------
+-- Some syntactic extensions --
+-------------------------------
 
 data ThreeInts where
   ThreeInts :: { first  :: Integer
                , second :: Integer
                , third  :: Integer } -> ThreeInts
 
-makeThirdSum, makeThirdSum', makeThirdSum'', makeThirdSum'''  :: ThreeInts -> ThreeInts
+makeThirdSum, makeThirdSum',
+makeThirdSum'', makeThirdSum'''
+  :: ThreeInts -> ThreeInts
 
 -- No special syntax sugar: very verbose!
 makeThirdSum ThreeInts{first = first, second = second, third = third} =
@@ -58,8 +68,9 @@ makeThirdSum'' ThreeInts{..} =
 makeThirdSum''' ThreeInts{..} =
   ThreeInts { third = first + second + third, .. }
 
--- Existential types are abstract types
--- Objects are abstract types, too!
+------------------------------------------
+-- Existential types are abstract types --
+------------------------------------------
 
 data Queue a where
   Queue :: { _enqueue :: a -> q -> q
@@ -92,8 +103,11 @@ queueToList = unfoldr dequeue
 enqueueAll :: Queue a -> [a] -> Queue a
 enqueueAll = foldr enqueue
 
--- But before we go on to make better queues...
--- Testing queue implementations for correctness
+-- But before we go on to make faster queues...
+
+---------------------------------------------------
+-- Testing queue implementations for correctness --
+---------------------------------------------------
 
 -- An operation on a queue
 data QueueOp a where
@@ -111,7 +125,7 @@ instance Arbitrary a => Arbitrary (QueueOp a) where
          a <- arbitrary
          return (Enqueue a)
 
--- Run a bunch of queue operations on a queue, and hand back the results and the queue
+-- Run a bunch of queue operations on a queue; hand back the results & the queue
 runQueueOps :: Queue a -> [QueueOp a] -> ([Maybe a], Queue a)
 runQueueOps queue instructions =
   case instructions of
@@ -129,8 +143,8 @@ runQueueOps queue instructions =
       (Nothing, enqueue a queue)
 
 -- A higher order property stating that for all sequences of queue operations,
--- the two specified queues return the same results and have the same observable state
--- (observable state here: what happens when you convert the queue to a list)
+-- the two specified queues return the same results and have the same observable
+-- state (observable state here: what happens when you convert queue to a list)
 compareQueues :: Eq a => Queue a -> Queue a -> [QueueOp a] -> Property
 compareQueues q1 q2 ops =
   let (results1, q1') = runQueueOps q1 ops
@@ -142,7 +156,9 @@ compareQueues q1 q2 ops =
                   &&
   queueToList q1' == queueToList q2'
 
--- Other implementations
+---------------------------
+-- Other implementations --
+---------------------------
 
 -- A queue with non-persistent amortized O(1) performance
 
@@ -154,15 +170,15 @@ compareQueues q1 q2 ops =
 twoListQueue :: Queue a
 twoListQueue =
   Queue { _insides = ([], [])
-        , _enqueue = \a (front, back) -> (front, a : back)     -- enqueue into the back
+        , _enqueue = \a (front, back) -> (front, a : back)  -- enqueue into back
         , _dequeue = \(front, back) ->
                        case (front, back) of
-                         ([], []) -> Nothing                   -- queue is empty if both lists are
-                         (a : front', _) ->                    -- otherwise, we will
-                           Just (a, (front', back))            -- dequeue from the front,
-                         ([], _)  ->                           -- or if the front is empty,
-                           let (a : front') = reverse back in  -- reverse the back
-                           Just (a, (front', [])) }            -- and set it as the front
+                         ([], []) -> Nothing    -- queue empty if both lists are
+                         (a : front', _) ->
+                           Just (a, (front', back))  -- dequeue from front,
+                         ([], _)  ->                 -- or if front is empty,
+                           let (a : front') = reverse back in  -- reverse back
+                           Just (a, (front', [])) }            -- & set as front
 
 prop_twoListQueue_spec :: [QueueOp Integer] -> Property
 prop_twoListQueue_spec = compareQueues slowQueue twoListQueue
@@ -217,19 +233,22 @@ prop_appendReverse_correct fs bs =
 prop_okasakiQueue_spec :: [QueueOp Integer] -> Property
 prop_okasakiQueue_spec = compareQueues slowQueue okasakiQueue
 
--- Modifying the implementation of an existing queue
+--------------------------------------------------------------------
+-- Modifying the implementation of an existing object, abstractly --
+--------------------------------------------------------------------
 
 -- Drops every other enqueue operation
 everyOther :: Queue a -> Queue a
 everyOther Queue{..} =
   Queue { _insides = (True,     -- flag to tell us whether to accept an enqueue
-                      _insides) -- the insides of whatever queue we're wrapping (opaque)
+                      _insides) -- insides of the queue we're wrapping (opaque)
         , _enqueue = \a (b, s) ->
-                       if b then (not b, _enqueue a s)  -- only enqueue if flag is True
-                            else (not b, s)             -- but flip the flag regardless
+                       if b then (not b, _enqueue a s)  -- enqueue iff flag True
+                            else (not b, s)             -- flip flag regardless
         , _dequeue = \(b, s) ->
                        case _dequeue s of
-                         Just (a, rest) -> Just (a, (not b, rest))  -- flip the flag on dequeue
+                         Just (a, rest) ->
+                           Just (a, (not b, rest))  -- flip the flag on dequeue
                          Nothing -> Nothing }
 
 -- Enqueues twice anything you tell it to enqueue
