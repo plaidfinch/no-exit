@@ -31,7 +31,7 @@ data Pear a where
 halfPare :: Pear a -> a
 halfPare (Pear a _) = a  -- works just fine
 
--- Talk about the forall-exists duality re: Curry-Howard
+-- The forall-exists duality!
 
 -------------------------------
 -- Some syntactic extensions --
@@ -43,7 +43,7 @@ data ThreeInts where
                , third  :: Integer } -> ThreeInts
 
 makeThirdSum, makeThirdSum',
-makeThirdSum'', makeThirdSum'''
+  makeThirdSum'', makeThirdSum'''
   :: ThreeInts -> ThreeInts
 
 -- No special syntax sugar: very verbose!
@@ -101,7 +101,11 @@ queueToList :: Queue a -> [a]
 queueToList = unfoldr dequeue
 
 enqueueAll :: Queue a -> [a] -> Queue a
-enqueueAll = foldr enqueue
+enqueueAll = foldl (flip enqueue)
+
+prop_queueToList_enqueueAll_id :: [Integer] -> Bool
+prop_queueToList_enqueueAll_id xs =
+  xs == queueToList (enqueueAll slowQueue xs)
 
 -- But before we go on to make faster queues...
 
@@ -268,7 +272,13 @@ prop_doubleEnqueue_everyOther_id =
 -- A silly show instance for queues, just so we can peek at them in the REPL
 instance (Show a) => Show (Queue a) where
   show queue =
-    "<<" ++ intercalate "," (map show $ queueToList queue) ++ ">>"
+    "<<< " ++ text ++ " <<<"
+    where
+      contents = queueToList queue
+      text =
+        case contents of
+          [] -> "empty"
+          _  -> intercalate "," (map show $ contents)
 
 return []
 runTests :: IO Bool
