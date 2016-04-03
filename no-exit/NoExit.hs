@@ -8,6 +8,7 @@ import Data.Function
 import Data.Maybe
 
 import Test.QuickCheck
+import Data.Monoid
 
 ------------------
 -- Introduction --
@@ -130,29 +131,23 @@ instance Arbitrary a => Arbitrary (QueueOp a) where
          return (Enqueue a)
 
 -- Run a bunch of queue operations on a queue; hand back the results & the queue
-runQueueOps :: Queue a -> [QueueOp a] -> ([Maybe a], Queue a)
-runQueueOps queue instructions =
-  case instructions of
-    [] -> ([], queue)
-    (op : ops) ->
-      let (ma, queue')   = runOp op
-          (mas, queue'') = runQueueOps queue' ops
-      in (ma : mas, queue'')
+runQueueOps :: Queue a -> [QueueOp a] -> (Queue a, [Maybe a])
+runQueueOps = (fmap . fmap) catMaybes . mapAccumL runOp
   where
-    runOp Dequeue =
-      case dequeue queue of
-        Nothing          -> (Nothing, queue)
-        Just (a, queue') -> (Just a, queue')
-    runOp (Enqueue a) =
-      (Nothing, enqueue a queue)
+    runOp queue op =
+      case op of
+        Dequeue -> case dequeue queue of
+          Nothing          -> (queue,  Just Nothing)
+          Just (a, queue') -> (queue', Just (Just a))
+        Enqueue a -> (enqueue a queue, Nothing)
 
 -- A higher order property stating that for all sequences of queue operations,
 -- the two specified queues return the same results and have the same observable
 -- state (observable state here: what happens when you convert queue to a list)
 compareQueues :: Eq a => Queue a -> Queue a -> [QueueOp a] -> Property
 compareQueues q1 q2 ops =
-  let (results1, q1') = runQueueOps q1 ops
-      (results2, q2') = runQueueOps q2 ops
+  let (q1', results1) = runQueueOps q1 ops
+      (q2', results2) = runQueueOps q2 ops
   in
   queueToList q1  ==  queueToList q2
                   ==>
