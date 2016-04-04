@@ -153,6 +153,8 @@ compareQueues q1 q2 ops =
          results1 == results2
 
 -- This property fails: uncomment it and try it... but first, can you guess why?
+-- This is also a good example of the utility of QuickCheck's *shrinking*:
+-- we see in the results a minimal distinguishing sequence of operations.
 -- prop_slowQueue_vs_badQueue :: [QueueOp Integer] -> Property
 -- prop_slowQueue_vs_badQueue =
 --   compareQueues slowQueue (Queue (:) uncons [])
