@@ -141,9 +141,8 @@ runQueueOps = (fmap . fmap) catMaybes . mapAccumL runOp
           Just (a, queue') -> (queue', Just (Just a))
         Enqueue a -> (enqueue a queue, Nothing)
 
--- A higher order property stating that for all sequences of queue operations,
--- the two specified queues return the same results and have the same observable
--- state (observable state here: what happens when you convert queue to a list)
+-- A higher order property stating *observational equivalence* for two queues
+-- That is, for all sequences of operations, they return the same results
 compareQueues :: Eq a => Queue a -> Queue a -> [QueueOp a] -> Property
 compareQueues q1 q2 ops =
   let (_, results1) = runQueueOps q1 ops
