@@ -2,17 +2,12 @@
 -- There is a *lot* more in the actual library! Check it out:
 -- <https://hackage.haskell.org/package/foldl>
 
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE RecordWildCards           #-}
-{-# LANGUAGE GADTs                     #-}
+{-# LANGUAGE RecordWildCards, GADTs #-}
 
 module Foldl where
 
 import Control.Applicative
-import qualified Data.List as List
-import qualified Data.Set  as Set
+import qualified Data.Set as Set
 
 import Prelude hiding
     ( head
