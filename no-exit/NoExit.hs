@@ -73,6 +73,7 @@ makeThirdSum''' ThreeInts{..} =
 -- Existential types are abstract types --
 ------------------------------------------
 
+-- An existential type for a queue "object"
 data Queue a where
   Queue :: { _enqueue :: a -> q -> q
            , _dequeue :: q -> Maybe (a, q)
@@ -92,11 +93,10 @@ enqueue a Queue{..} =
 
 dequeue :: Queue a -> Maybe (a, Queue a)
 dequeue Queue{..} =
-  -- case _dequeue _insides of
-  --   Nothing -> Nothing
-  --   Just (a, rest) ->
-  --     Just (a, Queue { _insides = rest, .. })
-  (fmap . fmap) (Queue _enqueue _dequeue) (_dequeue _insides)
+  case _dequeue _insides of
+    Nothing -> Nothing
+    Just (a, rest) ->
+      Just (a, Queue { _insides = rest, .. })
 
 queueToList :: Queue a -> [a]
 queueToList = unfoldr dequeue
@@ -145,12 +145,12 @@ runQueueOps = (fmap . fmap) catMaybes . mapAccumL runOp
 -- That is, for all sequences of operations, they return the same results
 compareQueues :: Eq a => Queue a -> Queue a -> [QueueOp a] -> Property
 compareQueues q1 q2 ops =
-  let (_, results1) = runQueueOps q1 ops
-      (_, results2) = runQueueOps q2 ops
-  in
   queueToList q1  ==  queueToList q2
                   ==>
          results1 == results2
+  where
+    (_, results1) = runQueueOps q1 ops
+    (_, results2) = runQueueOps q2 ops
 
 -- Making sure our tests mean something: compare a bad queue to our spec
 badQueue :: Queue a
