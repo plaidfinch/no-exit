@@ -146,14 +146,17 @@ runQueueOps = (fmap . fmap) catMaybes . mapAccumL runOp
 -- state (observable state here: what happens when you convert queue to a list)
 compareQueues :: Eq a => Queue a -> Queue a -> [QueueOp a] -> Property
 compareQueues q1 q2 ops =
-  let (q1', results1) = runQueueOps q1 ops
-      (q2', results2) = runQueueOps q2 ops
+  let (_, results1) = runQueueOps q1 ops
+      (_, results2) = runQueueOps q2 ops
   in
   queueToList q1  ==  queueToList q2
                   ==>
          results1 == results2
-                  &&
-  queueToList q1' == queueToList q2'
+
+-- This property fails: uncomment it and try it... but first, can you guess why?
+-- prop_slowQueue_vs_badQueue :: [QueueOp Integer] -> Property
+-- prop_slowQueue_vs_badQueue =
+--   compareQueues slowQueue (Queue (:) uncons [])
 
 ---------------------------
 -- Other implementations --
