@@ -1,4 +1,6 @@
 -- Modified from code available in Gabriel Gonzalez's Control.Foldl
+-- There is a *lot* more in the actual library! Check it out:
+-- <https://hackage.haskell.org/package/foldl>
 
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
