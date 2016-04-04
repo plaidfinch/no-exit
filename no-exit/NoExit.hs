@@ -152,12 +152,15 @@ compareQueues q1 q2 ops =
                   ==>
          results1 == results2
 
+-- Making sure our tests mean something: compare a bad queue to our spec
+badQueue :: Queue a
+badQueue = Queue (:) uncons []
+
 -- This property fails: uncomment it and try it... but first, can you guess why?
 -- This is also a good example of the utility of QuickCheck's *shrinking*:
 -- we see in the results a minimal distinguishing sequence of operations.
 -- prop_slowQueue_vs_badQueue :: [QueueOp Integer] -> Property
--- prop_slowQueue_vs_badQueue =
---   compareQueues slowQueue (Queue (:) uncons [])
+-- prop_slowQueue_vs_badQueue = compareQueues slowQueue badQueue
 
 ---------------------------
 -- Other implementations --
