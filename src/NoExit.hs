@@ -130,6 +130,8 @@ instance Arbitrary a => Arbitrary (QueueOp a) where
          a <- arbitrary
          return (Enqueue a)
 
+  -- When we *shrink* a value, we produce a list ofconceptually /smaller/
+  -- versions of that value that we hope still falsify a given test.
   shrink (Enqueue a) = [Enqueue a' | a' <- shrink a]
   shrink Dequeue     = []
 
