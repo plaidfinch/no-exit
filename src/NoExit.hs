@@ -252,16 +252,17 @@ everyOther :: Queue a -> Queue a
 everyOther Queue{..} =
   Queue { _insides = (True,     -- flag to tell us whether to accept an enqueue
                       _insides) -- insides of the queue we're wrapping (opaque)
-        , _enqueue = \a (b, s) ->
-                       if b then (not b, _enqueue a s)  -- enqueue iff flag True
-                            else (not b, s)             -- flip flag regardless
-        , _dequeue = \(b, s) ->
-                       case _dequeue s of
+        , _enqueue = \a (b, q) ->
+                       if b then (not b, _enqueue a q)  -- enqueue iff flag True
+                            else (not b, q)             -- flip flag regardless
+        , _dequeue = \(b, q) ->
+                       case _dequeue q of
                          Just (a, rest) ->
                            Just (a, (not b, rest))  -- flip the flag on dequeue
                          Nothing -> Nothing }
 
 -- Enqueues twice anything you tell it to enqueue
+-- That is to say, we call the enqueue "method" of the wrapped queue twice
 doubleEnqueue :: Queue a -> Queue a
 doubleEnqueue Queue{..} =
   Queue { _enqueue = \a -> _enqueue a . _enqueue a, .. }
@@ -286,6 +287,8 @@ instance (Show a) => Show (Queue a) where
           [] -> "empty"
           _  -> intercalate "," (map show $ contents)
 
+-- Use Template Haskell to make a function to run all tests
+-- (a test is anything with a name starting with "prop_")
 return []
 runTests :: IO Bool
 runTests = $quickCheckAll
