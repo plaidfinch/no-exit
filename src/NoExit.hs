@@ -1,4 +1,3 @@
-
 {-# LANGUAGE GADTs, RecordWildCards, NamedFieldPuns, TemplateHaskell #-}
 
 module NoExit where
@@ -124,11 +123,9 @@ data QueueOp a where
 instance Arbitrary a => Arbitrary (QueueOp a) where
   arbitrary = do
     coin <- arbitrary
-    if coin
-       then return Dequeue
-       else do
-         a <- arbitrary
-         return (Enqueue a)
+    case coin of
+      True  -> return Dequeue
+      False -> Enqueue <$> arbitrary
 
   -- When we *shrink* a value, we produce a list ofconceptually /smaller/
   -- versions of that value that we hope still falsify a given test.
@@ -151,10 +148,10 @@ runQueueOps queue0 =
 -- That is, for all sequences of operations, they return the same results
 compareQueues :: Eq a => Queue a -> Queue a -> [QueueOp a] -> Property
 compareQueues q1 q2 ops =
-  queueToList q1  ==  queueToList q2
-                  ==>
-         results1 == results2
-  where
+  queueToList q1 == queueToList q2
+                 ==>
+        results1 == results2
+  -- where
     (_, results1) = runQueueOps q1 ops
     (_, results2) = runQueueOps q2 ops
 
@@ -180,7 +177,7 @@ prop_slowQueue_vs_badQueue =
 -- list and set it to be the "front" list. But this only happens once
 -- every O(n) operations, and since it only takes O(n) time, the amortized
 -- performance of the queue is O(1).
--- twoListQueue :: Queue a
+twoListQueue :: Queue a
 twoListQueue =
   Queue { _insides = ([], [])
         , _enqueue = \a (front, back) -> (front, a : back)  -- enqueue into back
