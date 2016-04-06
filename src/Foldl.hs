@@ -51,7 +51,7 @@ instance Applicative (Fold a) where
         step (Pair xL xR) a =
           Pair (stepL xL a) (stepR xR a)
         done (Pair xL xR) =
-          doneL xL (doneR xR)
+          (doneL xL) (doneR xR)
         begin = Pair beginL beginR
 
 -- Apply a strict left 'Fold' to a list
