@@ -130,9 +130,13 @@ instance Arbitrary a => Arbitrary (QueueOp a) where
          a <- arbitrary
          return (Enqueue a)
 
+  shrink (Enqueue a) = [Enqueue a' | a' <- shrink a]
+  shrink Dequeue     = []
+
 -- Run a bunch of queue operations on a queue; hand back the results & the queue
 runQueueOps :: Queue a -> [QueueOp a] -> (Queue a, [Maybe a])
-runQueueOps = (fmap . fmap) catMaybes . mapAccumL runOp
+runQueueOps queue0 =
+  fmap catMaybes . mapAccumL runOp queue0
   where
     runOp queue op =
       case op of
@@ -156,11 +160,12 @@ compareQueues q1 q2 ops =
 badQueue :: Queue a
 badQueue = Queue (:) uncons []
 
--- This property fails: uncomment it and try it... but first, can you guess why?
+-- This property fails: can you guess why?
 -- This is also a good example of the utility of QuickCheck's *shrinking*:
 -- we see in the results a minimal distinguishing sequence of operations.
--- prop_slowQueue_vs_badQueue :: [QueueOp Integer] -> Property
--- prop_slowQueue_vs_badQueue = compareQueues slowQueue badQueue
+prop_slowQueue_vs_badQueue :: [QueueOp Integer] -> Property
+prop_slowQueue_vs_badQueue =
+  expectFailure . compareQueues slowQueue badQueue
 
 ---------------------------
 -- Other implementations --
@@ -173,7 +178,7 @@ badQueue = Queue (:) uncons []
 -- list and set it to be the "front" list. But this only happens once
 -- every O(n) operations, and since it only takes O(n) time, the amortized
 -- performance of the queue is O(1).
-twoListQueue :: Queue a
+-- twoListQueue :: Queue a
 twoListQueue =
   Queue { _insides = ([], [])
         , _enqueue = \a (front, back) -> (front, a : back)  -- enqueue into back
