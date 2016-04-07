@@ -211,21 +211,14 @@ okasakiQueue =
                          (e : es) ->
                            Just (e, makeEq (es, bs, as)) }
   where
-    -- makeEq (fs bs as) reasserts the invariant that |fs| - |bs| = |as|,
-    -- as it is called exactly when |fs| decreases or |bs| increases.
+    -- makeEq (fs bs as) preserves invariant: |fs| - |bs| = |as|
+    -- ... since it's called exactly when |fs| decreases or |bs| increases
     makeEq (fs, bs, (_ : as')) = (fs, bs, as')
     makeEq (fs, bs, []) =
       let fs' = appendReverse fs bs
       in (fs', [], fs')
-    -- Why do we care? Incrementally forcing the list as' (which is always a
-    -- tail of fs) allows us to distribute the reversal of the back of the
-    -- queue across every operation equally, thus allowing every operation
-    -- to be worst-case O(1).
 
 -- Maximally lazy computation of: xs ++ reverse ys
--- So long as |ys| <= |xs|, each cell of (appendReverse xs ys) takes
--- O(1) time to produce, unlike those of (xs ++ reverse ys), where
--- (reverse ys) is forced all at the same time.
 appendReverse :: [a] -> [a] -> [a]
 appendReverse xs ys =
   rot xs ys []
@@ -246,6 +239,9 @@ prop_okasakiQueue_spec = compareQueues slowQueue okasakiQueue
 ------------------------------------------------------
 -- An aside: observing the lazy evaluation of lists --
 ------------------------------------------------------
+
+-- So why does this work? How is it that using appendReverse like this
+-- gives us an O(1) persistent worst-case guarantee?
 
 -- trace :: String -> [a] -> [a]
 
