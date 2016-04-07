@@ -7,7 +7,7 @@ import Data.Function
 import Data.Maybe
 
 import Test.QuickCheck
-import Data.Monoid
+import System.IO.Unsafe
 
 ------------------
 -- Introduction --
@@ -151,7 +151,7 @@ compareQueues q1 q2 ops =
   queueToList q1 == queueToList q2
                  ==>
         results1 == results2
-  -- where
+  where
     (_, results1) = runQueueOps q1 ops
     (_, results2) = runQueueOps q2 ops
 
@@ -286,6 +286,42 @@ instance (Show a) => Show (Queue a) where
         case contents of
           [] -> "empty"
           _  -> intercalate "," (map show $ contents)
+
+-- Observing the lazy evaluation of lists
+
+-- Annotate a value with a string that is printed when it gets evaluated
+trace :: String -> a -> a
+trace string a =
+  unsafePerformIO (putStrLn string) `seq` a
+
+-- Trace a cons cell
+traceCons :: String -> a -> [a] -> [a]
+traceCons string a as = trace string (a : as)
+
+-- Trace a nil
+traceNil :: String -> [a]
+traceNil string = trace string []
+
+-- Instrument a list to see how it gets evaluated
+instrument :: String -> [a] -> [a]
+instrument c = foldr (traceCons c) (traceNil "[]")
+
+-- Force the first n cons-cells in a list
+observe :: Int -> [a] -> IO ()
+observe 0      _   = return ()
+observe n      []  = return ()
+observe n (_ : as) = observe (n - 1) as
+
+-- Below are two different ways of computing [0..2] ++ reverse [3..5]
+-- Try playing around with 'observe' to see what's happening.
+
+lazyAppRevved :: () -> [Integer]
+lazyAppRevved () =
+  appendReverse (instrument "1" [0..2]) (instrument "2" [3..5])
+
+tooStrictAppRevved :: () -> [Integer]
+tooStrictAppRevved () =
+  (instrument "1" [0..2]) ++ reverse (instrument "2" [3..5])
 
 -- Use Template Haskell to make a function to run all tests
 -- (a test is anything with a name starting with "prop_")
