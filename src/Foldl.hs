@@ -8,22 +8,10 @@ module Foldl where
 
 import Control.Applicative
 
+-- We're going to re-implement these in this module...
 import Prelude hiding
-    ( head
-    , last
-    , null
-    , length
-    , and
-    , or
-    , all
-    , any
-    , sum
-    , product
-    , maximum
-    , minimum
-    , elem
-    , notElem
-    , reverse )
+  (head, last, null, length, and, or, all, any, sum,
+   product, maximum, minimum, elem, notElem, reverse)
 
 data Fold a b where
   Fold :: (x -> a -> x)  -- step
