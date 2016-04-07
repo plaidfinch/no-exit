@@ -3,7 +3,6 @@
 module NoExit where
 
 import Data.List
-import Data.Function
 import Data.Maybe
 
 import Test.QuickCheck
@@ -123,9 +122,9 @@ data QueueOp a where
 instance Arbitrary a => Arbitrary (QueueOp a) where
   arbitrary = do
     coin <- arbitrary
-    case coin of
-      True  -> return Dequeue
-      False -> Enqueue <$> arbitrary
+    if coin
+      then return Dequeue
+      else Enqueue <$> arbitrary
 
   -- When we *shrink* a value, we produce a list ofconceptually /smaller/
   -- versions of that value that we hope still falsify a given test.
@@ -213,7 +212,7 @@ okasakiQueue =
   where
     -- makeEq (fs bs as) preserves invariant: |fs| - |bs| = |as|
     -- ... since it's called exactly when |fs| decreases or |bs| increases
-    makeEq (fs, bs, (_ : as')) = (fs, bs, as')
+    makeEq (fs, bs, _ : as') = (fs, bs, as')
     makeEq (fs, bs, []) =
       let fs' = appendReverse fs bs
       in (fs', [], fs')
@@ -256,7 +255,7 @@ instrument s =
 -- Force the first n cons-cells in a list
 observe :: Int -> [a] -> IO ()
 observe 0      _   = return ()
-observe n      []  = return ()
+observe _      []  = return ()
 observe n (_ : as) = observe (n - 1) as
 
 -- Below are two different ways of computing [1,2,3] ++ reverse [4,5,6]
@@ -272,7 +271,7 @@ lazyEnough () =
 
 tooStrict :: () -> [Integer]
 tooStrict () =
-  (instrument "A" listA) ++ reverse (instrument "B" listB)
+  instrument "A" listA ++ reverse (instrument "B" listB)
 
 -- Another thought exercise: why do we make 'lazyEnough' and 'tooStrict'
 -- functions from () -> Integer? What would happen if we didn't have that
@@ -320,7 +319,7 @@ instance (Show a) => Show (Queue a) where
       text =
         case contents of
           [] -> "empty"
-          _  -> intercalate "," (map show $ contents)
+          _  -> intercalate "," (map show contents)
 
 
 -- Use Template Haskell to make a function to run all tests
