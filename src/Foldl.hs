@@ -59,14 +59,6 @@ fold (Fold step state done) =
 -- A bunch of useful atomic folds --
 ------------------------------------
 
--- Instrument a list to see how it gets evaluated
-instrument :: [a] -> [a]
-instrument =
-  foldr cons nil
-  where
-    cons a as = trace ":"  (a : as)
-    nil       = trace "[]" []
-
 null :: Fold a Bool
 null = Fold (\_ _ -> False) True id
 
