@@ -2,12 +2,11 @@
 -- There is a *lot* more in the actual library! Check it out:
 -- <https://hackage.haskell.org/package/foldl>
 
-{-# LANGUAGE RecordWildCards, GADTs #-}
+{-# LANGUAGE GADTs #-}
 
 module Foldl where
 
 import Control.Applicative
-import qualified Data.Set as Set
 
 import Prelude hiding
     ( head
@@ -27,37 +26,37 @@ import Prelude hiding
     , reverse )
 
 data Fold a b where
-  Fold :: { step  :: x -> a -> x
-          , begin :: x
-          , done  :: x -> b
-          } -> Fold a b
+  Fold :: (x -> a -> x)  -- step
+       -> x              -- state
+       -> (x -> b)       -- done
+       -> Fold a b
 
 data Pair a b where
-  Pair :: !a -> !b -> Pair a b  -- a Pair is a strict 2-tuple
+  Pair :: !a -> !b -> Pair a b  -- a strict 2-tuple
 
 instance Functor (Fold a) where
-    fmap f Fold{..} = Fold { done = f . done, .. }
+  fmap f (Fold step state done) =
+    Fold step state (f . done)
 
 instance Applicative (Fold a) where
+  pure b = Fold (\() _ -> ())
+                ()
+                (\() -> b)
 
-    pure b = Fold { step  = \() _ -> ()
-                  , begin = ()
-                  , done  = \() -> b }
-
-    Fold stepL beginL doneL <*>
-      Fold stepR beginR doneR =
-        Fold step begin done
-      where
-        step (Pair xL xR) a =
-          Pair (stepL xL a) (stepR xR a)
-        done (Pair xL xR) =
-          (doneL xL) (doneR xR)
-        begin = Pair beginL beginR
+  Fold stepL beginL doneL <*>
+    Fold stepR beginR doneR =
+      Fold step state done
+    where
+      step (Pair xL xR) a =
+        Pair (stepL xL a) (stepR xR a)
+      done (Pair xL xR) =
+        (doneL xL) (doneR xR)
+      state = Pair beginL beginR
 
 -- Apply a strict left 'Fold' to a list
 fold :: Fold a b -> [a] -> b
-fold Fold{..} as =
-  (foldr cons done as) begin
+fold (Fold step state done) as =
+  (foldr cons done as) state
   where
     cons a k x = k $! step x a
 
