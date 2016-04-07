@@ -245,17 +245,13 @@ prop_okasakiQueue_spec = compareQueues slowQueue okasakiQueue
 
 -- trace :: String -> [a] -> [a]
 
--- Trace a cons cell
-traceCons :: String -> a -> [a] -> [a]
-traceCons string a as = trace string (a : as)
-
--- Trace a nil
-traceNil :: String -> [a]
-traceNil string = trace string []
-
 -- Instrument a list to see how it gets evaluated
 instrument :: String -> [a] -> [a]
-instrument c = foldr (traceCons c) (traceNil "[]")
+instrument s =
+  foldr cons nil
+  where
+    cons a as = trace (s ++ " :")  (a : as)
+    nil       = trace (s ++ " []") []
 
 -- Force the first n cons-cells in a list
 observe :: Int -> [a] -> IO ()
