@@ -243,6 +243,49 @@ prop_appendReverse_correct fs bs =
 prop_okasakiQueue_spec :: [QueueOp Integer] -> Property
 prop_okasakiQueue_spec = compareQueues slowQueue okasakiQueue
 
+------------------------------------------------------
+-- An aside: observing the lazy evaluation of lists --
+------------------------------------------------------
+
+-- trace :: String -> [a] -> [a]
+
+-- Trace a cons cell
+traceCons :: String -> a -> [a] -> [a]
+traceCons string a as = trace string (a : as)
+
+-- Trace a nil
+traceNil :: String -> [a]
+traceNil string = trace string []
+
+-- Instrument a list to see how it gets evaluated
+instrument :: String -> [a] -> [a]
+instrument c = foldr (traceCons c) (traceNil "[]")
+
+-- Force the first n cons-cells in a list
+observe :: Int -> [a] -> IO ()
+observe 0      _   = return ()
+observe n      []  = return ()
+observe n (_ : as) = observe (n - 1) as
+
+-- Below are two different ways of computing [1,2,3] ++ reverse [4,5,6]
+-- Try playing around with 'observe' to see what's happening.
+
+listA, listB :: [Integer]
+listA = [1,2,3]
+listB = [4,5,6]
+
+lazyEnough :: () -> [Integer]
+lazyEnough () =
+  appendReverse (instrument "A" listA) (instrument "B" listB)
+
+tooStrict :: () -> [Integer]
+tooStrict () =
+  (instrument "A" listA) ++ reverse (instrument "B" listB)
+
+-- Another thought exercise: why do we make 'lazyEnough' and 'tooStrict'
+-- functions from () -> Integer? What would happen if we didn't have that
+-- argument of ()?
+
 --------------------------------------------------------------------
 -- Modifying the implementation of an existing object, abstractly --
 --------------------------------------------------------------------
@@ -287,46 +330,6 @@ instance (Show a) => Show (Queue a) where
           [] -> "empty"
           _  -> intercalate "," (map show $ contents)
 
--- Observing the lazy evaluation of lists
-
--- trace :: String -> [a] -> [a]
-
--- Trace a cons cell
-traceCons :: String -> a -> [a] -> [a]
-traceCons string a as = trace string (a : as)
-
--- Trace a nil
-traceNil :: String -> [a]
-traceNil string = trace string []
-
--- Instrument a list to see how it gets evaluated
-instrument :: String -> [a] -> [a]
-instrument c = foldr (traceCons c) (traceNil "[]")
-
--- Force the first n cons-cells in a list
-observe :: Int -> [a] -> IO ()
-observe 0      _   = return ()
-observe n      []  = return ()
-observe n (_ : as) = observe (n - 1) as
-
--- Below are two different ways of computing [1,2,3] ++ reverse [4,5,6]
--- Try playing around with 'observe' to see what's happening.
-
-listA, listB :: [Integer]
-listA = [1,2,3]
-listB = [4,5,6]
-
-lazyEnough :: () -> [Integer]
-lazyEnough () =
-  appendReverse (instrument "A" listA) (instrument "B" listB)
-
-tooStrict :: () -> [Integer]
-tooStrict () =
-  (instrument "A" listA) ++ reverse (instrument "B" listB)
-
--- Another thought exercise: why do we make 'lazyEnough' and 'tooStrict'
--- functions from () -> Integer? What would happen if we didn't have that
--- argument of ()?
 
 -- Use Template Haskell to make a function to run all tests
 -- (a test is anything with a name starting with "prop_")
