@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, RecordWildCards, NamedFieldPuns, TemplateHaskell #-}
+{-# LANGUAGE GADTs, RecordWildCards, TemplateHaskell #-}
 
 module NoExit where
 
@@ -41,9 +41,7 @@ data ThreeInts where
                , second :: Integer
                , third  :: Integer } -> ThreeInts
 
-makeThirdSum, makeThirdSum',
-  makeThirdSum'', makeThirdSum'''
-  :: ThreeInts -> ThreeInts
+makeThirdSum, makeThirdSum', makeThirdSum'' :: ThreeInts -> ThreeInts
 
 -- No special syntax sugar: very verbose!
 makeThirdSum ThreeInts{first = first, second = second, third = third} =
@@ -51,20 +49,14 @@ makeThirdSum ThreeInts{first = first, second = second, third = third} =
             , second = second
             , third  = first + second + third }
 
--- With NamedFieldPuns:
-makeThirdSum' ThreeInts{first, second, third} =
-  ThreeInts { first
-            , second
-            , third = first + second + third }
-
--- With NamedFieldPuns and RecordWildCards:
-makeThirdSum'' ThreeInts{..} =
-  ThreeInts { first
-            , second
-            , third = first + second + third }
+-- With record wildcards, we can omit the verbose record pattern match:
+makeThirdSum' ThreeInts{..} =
+  ThreeInts { first  = first
+            , second = second
+            , third  = first + second + third }
 
 -- We can even use a record wildcard when *constructing* a record:
-makeThirdSum''' ThreeInts{..} =
+makeThirdSum'' ThreeInts{..} =
   ThreeInts { third = first + second + third, .. }
 
 ------------------------------------------
