@@ -7,11 +7,17 @@
 module Foldl where
 
 import Control.Applicative
+import Data.List ( foldl' )
+import Debug.Trace
 
 -- We're going to re-implement these in this module...
 import Prelude hiding
   (head, last, null, length, and, or, all, any, sum,
    product, maximum, minimum, elem, notElem, reverse)
+
+-------------------------------------------
+-- Reifying folds as an existential type --
+-------------------------------------------
 
 data Fold a b where
   Fold :: (x -> a -> x)  -- step
@@ -31,8 +37,8 @@ instance Applicative (Fold a) where
                 ()             -- we have no interesting state
                 (\() -> b)     -- when we're done, return b
 
-  Fold stepL beginL doneL <*>
-    Fold stepR beginR doneR =
+  Fold stepL stateL doneL <*>
+    Fold stepR stateR doneR =
       Fold step state done
     where
       step (Pair xL xR) a =
@@ -40,22 +46,26 @@ instance Applicative (Fold a) where
              (stepR xR a)         -- ...the corresponding piece of the paired states
       done (Pair xL xR) =         -- when done, apply (done xL :: a -> b)...
         (doneL xL) (doneR xR)     -- ...to (doneR xR :: a)
-      state = Pair beginL beginR  -- our state is a pair of the original states
+      state = Pair stateL stateR  -- our state is a pair of the original states
 
 -- Apply a strict left 'Fold' to a list
 -- We do this by using 'foldr' to build a *function* which acts as
 -- a *left* fold over as.
 fold :: forall a b. Fold a b -> [a] -> b
-fold (Fold (step  :: x -> a -> x)
-           (state :: x)
-           (done  :: x -> b)) as =
-  (foldr cons done as) state
-  where
-    cons :: a -> (x -> b) -> (x -> b)
-    cons a k x = k $! step x a
-    -- ($!) is like ($) but strictly evaluates the argument to the function
+fold (Fold step state done) =
+  done . foldl' step state
 
--- A bunch of useful atomic folds...
+------------------------------------
+-- A bunch of useful atomic folds --
+------------------------------------
+
+-- Instrument a list to see how it gets evaluated
+instrument :: [a] -> [a]
+instrument =
+  foldr cons nil
+  where
+    cons a as = trace ":"  (a : as)
+    nil       = trace "[]" []
 
 null :: Fold a Bool
 null = Fold (\_ _ -> False) True id
