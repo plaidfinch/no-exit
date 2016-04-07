@@ -7,7 +7,7 @@ import Data.Function
 import Data.Maybe
 
 import Test.QuickCheck
-import System.IO.Unsafe
+import Debug.Trace
 
 ------------------
 -- Introduction --
@@ -289,10 +289,7 @@ instance (Show a) => Show (Queue a) where
 
 -- Observing the lazy evaluation of lists
 
--- Annotate a value with a string that is printed when it gets evaluated
-trace :: String -> a -> a
-trace string a =
-  unsafePerformIO (putStrLn string) `seq` a
+-- trace :: String -> [a] -> [a]
 
 -- Trace a cons cell
 traceCons :: String -> a -> [a] -> [a]
@@ -312,16 +309,24 @@ observe 0      _   = return ()
 observe n      []  = return ()
 observe n (_ : as) = observe (n - 1) as
 
--- Below are two different ways of computing [0..2] ++ reverse [3..5]
+-- Below are two different ways of computing [1,2,3] ++ reverse [4,5,6]
 -- Try playing around with 'observe' to see what's happening.
 
-lazyAppRevved :: () -> [Integer]
-lazyAppRevved () =
-  appendReverse (instrument "1" [0..2]) (instrument "2" [3..5])
+listA, listB :: [Integer]
+listA = [1,2,3]
+listB = [4,5,6]
 
-tooStrictAppRevved :: () -> [Integer]
-tooStrictAppRevved () =
-  (instrument "1" [0..2]) ++ reverse (instrument "2" [3..5])
+lazyEnough :: () -> [Integer]
+lazyEnough () =
+  appendReverse (instrument "A" listA) (instrument "B" listB)
+
+tooStrict :: () -> [Integer]
+tooStrict () =
+  (instrument "A" listA) ++ reverse (instrument "B" listB)
+
+-- Another thought exercise: why do we make 'lazyEnough' and 'tooStrict'
+-- functions from () -> Integer? What would happen if we didn't have that
+-- argument of ()?
 
 -- Use Template Haskell to make a function to run all tests
 -- (a test is anything with a name starting with "prop_")
