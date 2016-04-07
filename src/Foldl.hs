@@ -8,7 +8,6 @@ module Foldl where
 
 import Control.Applicative
 import Data.List ( foldl' )
-import Debug.Trace
 
 -- We're going to re-implement these in this module...
 import Prelude hiding
