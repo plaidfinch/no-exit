@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, RecordWildCards, TemplateHaskell #-}
+{-# LANGUAGE GADTs, TemplateHaskell #-}
 
 module NoExit where
 
@@ -32,61 +32,36 @@ halfPare (Pear a _) = a  -- works just fine
 
 -- The forall-exists duality!
 
--------------------------------
--- Some syntactic extensions --
--------------------------------
-
-data ThreeInts where
-  ThreeInts :: { first  :: Integer
-               , second :: Integer
-               , third  :: Integer } -> ThreeInts
-
-makeThirdSum, makeThirdSum', makeThirdSum'' :: ThreeInts -> ThreeInts
-
--- No special syntax sugar: very verbose!
-makeThirdSum ThreeInts{first = first, second = second, third = third} =
-  ThreeInts { first  = first
-            , second = second
-            , third  = first + second + third }
-
--- With record wildcards, we can omit the verbose record pattern match:
-makeThirdSum' ThreeInts{..} =
-  ThreeInts { first  = first
-            , second = second
-            , third  = first + second + third }
-
--- We can even use a record wildcard when *constructing* a record:
-makeThirdSum'' ThreeInts{..} =
-  ThreeInts { third = first + second + third, .. }
-
 ------------------------------------------
 -- Existential types are abstract types --
 ------------------------------------------
 
 -- An existential type for a queue "object"
 data Queue a where
-  Queue :: { _enqueue :: a -> q -> q
-           , _dequeue :: q -> Maybe (a, q)
-           , _insides :: q
-           } -> Queue a
+  Queue :: (a -> q -> q)
+        -> (q -> Maybe (a, q))
+        -> q
+        -> Queue a
 
 -- A very simple queue with O(n) enqueue and O(1) dequeue
 -- This is useful as a reference implementation
 slowQueue :: Queue a
 slowQueue = Queue tack uncons []
   where
+    tack :: a -> [a] -> [a]
     tack x xs = xs ++ [x]
 
 enqueue :: a -> Queue a -> Queue a
-enqueue a Queue{..} =
-  Queue { _insides = _enqueue a _insides, .. }
+enqueue a (Queue enQ deQ q) =
+  Queue enQ deQ (enQ a q)
 
 dequeue :: Queue a -> Maybe (a, Queue a)
-dequeue Queue{..} =
-  case _dequeue _insides of
-    Nothing -> Nothing
-    Just (a, rest) ->
-      Just (a, Queue { _insides = rest, .. })
+dequeue (Queue enQ deQ q) =
+  (fmap . fmap) (Queue enQ deQ) (deQ q)
+  -- case deQ q of
+  --   Nothing -> Nothing
+  --   Just (a, rest) ->
+  --     Just (a, Queue enQ deQ rest)
 
 queueToList :: Queue a -> [a]
 queueToList = unfoldr dequeue
@@ -118,9 +93,9 @@ instance Arbitrary a => Arbitrary (QueueOp a) where
       then return Dequeue
       else Enqueue <$> arbitrary
 
-  -- When we *shrink* a value, we produce a list ofconceptually /smaller/
+  -- When we *shrink* a value, we produce a list of conceptually /smaller/
   -- versions of that value that we hope still falsify a given test.
-  shrink (Enqueue a) = [Enqueue a' | a' <- shrink a]
+  shrink (Enqueue a) = Enqueue <$> shrink a
   shrink Dequeue     = []
 
 -- Run a bunch of queue operations on a queue; hand back the results & the queue
@@ -169,17 +144,18 @@ prop_slowQueue_vs_badQueue =
 -- every O(n) operations, and since it only takes O(n) time, the amortized
 -- performance of the queue is O(1).
 twoListQueue :: Queue a
-twoListQueue =
-  Queue { _insides = ([], [])
-        , _enqueue = \a (front, back) -> (front, a : back)  -- enqueue into back
-        , _dequeue = \(front, back) ->
-                       case (front, back) of
-                         ([], []) -> Nothing    -- queue empty if both lists are
-                         (a : front', _) ->
-                           Just (a, (front', back))  -- dequeue from front,
-                         ([], _)  ->                 -- or if front is empty,
-                           let (a : front') = reverse back in  -- reverse back
-                           Just (a, (front', [])) }            -- & set as front
+twoListQueue = Queue enQ deQ q
+  where
+    q = ([], [])  -- a queue consists of a "front" and a "back"
+
+    enQ a (front, back) =
+          (front, a : back)  -- enqueue into back
+
+    deQ ([], [])           = Nothing     -- queue empty if both lists are empty
+    deQ (a : front', back) = Just (a, (front', back))  -- we dequeue from front,
+    deQ ([], back) =                                   -- or if front is empty,
+      let (a : front') = reverse back                  -- reverse back
+      in Just (a, (front', []))                        -- & set as front
 
 prop_twoListQueue_spec :: [QueueOp Integer] -> Property
 prop_twoListQueue_spec = compareQueues slowQueue twoListQueue
@@ -192,16 +168,16 @@ prop_twoListQueue_spec = compareQueues slowQueue twoListQueue
 -- one step every operation, so that when we need it reversed, we've already
 -- done it!
 okasakiQueue :: Queue a
-okasakiQueue =
-  Queue { _insides = ([], [], [])
-        , _enqueue = \e (fs, bs, as) ->
-                       makeEq (fs, e : bs, as)
-        , _dequeue = \(fs, bs, as) ->
-                       case fs of
-                         [] -> Nothing
-                         (e : es) ->
-                           Just (e, makeEq (es, bs, as)) }
+okasakiQueue = Queue enQ deQ q
   where
+    q = ([], [], [])  -- (front, back, some tail of front)
+
+    enQ e (fs, bs, as) =
+      makeEq (fs, e : bs, as)  -- enqueue into back
+
+    deQ ([],      _, _)  = Nothing
+    deQ (f : fs, bs, as) = Just (f, makeEq (fs, bs, as))
+
     -- makeEq (fs bs as) preserves invariant: |fs| - |bs| = |as|
     -- ... since it's called exactly when |fs| decreases or |bs| increases
     makeEq (fs, bs, _ : as') = (fs, bs, as')
@@ -234,7 +210,7 @@ prop_okasakiQueue_spec = compareQueues slowQueue okasakiQueue
 -- So why does this work? How is it that using appendReverse like this
 -- gives us an O(1) persistent worst-case guarantee?
 
--- trace :: String -> [a] -> [a]
+-- trace :: String -> a -> a
 
 -- Instrument a list to see how it gets evaluated
 instrument :: String -> [a] -> [a]
@@ -275,28 +251,29 @@ tooStrict () =
 
 -- Drops every other enqueue operation
 everyOther :: Queue a -> Queue a
-everyOther Queue{..} =
-  Queue { _insides = (True,     -- flag to tell us whether to accept an enqueue
-                      _insides) -- insides of the queue we're wrapping (opaque)
-        , _enqueue = \a (b, q) ->
-                       if b then (not b, _enqueue a q)  -- enqueue iff flag True
-                            else (not b, q)             -- flip flag regardless
-        , _dequeue = \(b, q) ->
-                       case _dequeue q of
-                         Just (a, rest) ->
-                           Just (a, (not b, rest))  -- flip the flag on dequeue
-                         Nothing -> Nothing }
+everyOther (Queue enQ deQ q0) = Queue enQ' deQ' q'
+  where
+    q' = (True,  -- flag to tell us whether to accept an enqueue
+          q0)    -- insides of the queue we're wrapping (opaque)
+
+    enQ' a (True,  q) = (False, enQ a q)  -- enqueue iff flag True
+    enQ' _ (False, q) = (True, q)         -- flip flag regardless
+
+    deQ' (b, q) =
+      case deQ q of
+        Just (a, rest) ->
+          Just (a, (not b, rest))  -- flip the flag on dequeue
+        Nothing -> Nothing
 
 -- Enqueues twice anything you tell it to enqueue
 -- That is to say, we call the enqueue "method" of the wrapped queue twice
 doubleEnqueue :: Queue a -> Queue a
-doubleEnqueue Queue{..} =
-  Queue { _enqueue = \a -> _enqueue a . _enqueue a, .. }
+doubleEnqueue (Queue enQ deQ q) =
+  Queue (\a -> enQ a . enQ a) deQ q
 
--- Claim: doublePush . everyOther === id
 prop_doubleEnqueue_everyOther_id :: [QueueOp Integer] -> Property
 prop_doubleEnqueue_everyOther_id =
-  compareQueues okasakiQueue (doubleEnqueue (everyOther okasakiQueue))
+  compareQueues okasakiQueue (everyOther (doubleEnqueue okasakiQueue))
 
 --------------------------
 -- Miscellaneous things --
