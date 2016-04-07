@@ -2,7 +2,7 @@
 -- There is a *lot* more in the actual library! Check it out:
 -- <https://hackage.haskell.org/package/foldl>
 
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTSyntax, ExistentialQuantification, ScopedTypeVariables #-}
 
 module Foldl where
 
@@ -35,30 +35,37 @@ data Pair a b where
   Pair :: !a -> !b -> Pair a b  -- a strict 2-tuple
 
 instance Functor (Fold a) where
-  fmap f (Fold step state done) =
-    Fold step state (f . done)
+  fmap f (Fold step state      done) =
+          Fold step state (f . done)
 
 instance Applicative (Fold a) where
-  pure b = Fold (\() _ -> ())
-                ()
-                (\() -> b)
+  pure b = Fold (\() _ -> ())  -- step returns () always
+                ()             -- we have no interesting state
+                (\() -> b)     -- when we're done, return b
 
   Fold stepL beginL doneL <*>
     Fold stepR beginR doneR =
       Fold step state done
     where
       step (Pair xL xR) a =
-        Pair (stepL xL a) (stepR xR a)
-      done (Pair xL xR) =
-        (doneL xL) (doneR xR)
-      state = Pair beginL beginR
+        Pair (stepL xL a)         -- step applies the individual step functions to...
+             (stepR xR a)         -- ...the corresponding piece of the paired states
+      done (Pair xL xR) =         -- when done, apply (done xL :: a -> b)...
+        (doneL xL) (doneR xR)     -- ...to (doneR xR :: a)
+      state = Pair beginL beginR  -- our state is a pair of the original states
 
 -- Apply a strict left 'Fold' to a list
-fold :: Fold a b -> [a] -> b
-fold (Fold step state done) as =
+-- We do this by using 'foldr' to build a *function* which acts as
+-- a *left* fold over as.
+fold :: forall a b. Fold a b -> [a] -> b
+fold (Fold (step  :: x -> a -> x)
+           (state :: x)
+           (done  :: x -> b)) as =
   (foldr cons done as) state
   where
+    cons :: a -> (x -> b) -> (x -> b)
     cons a k x = k $! step x a
+    -- ($!) is like ($) but strictly evaluates the argument to the function
 
 -- A bunch of useful atomic folds...
 
