@@ -2,7 +2,7 @@
 -- There is a *lot* more in the actual library! Check it out:
 -- <https://hackage.haskell.org/package/foldl>
 
-{-# LANGUAGE GADTSyntax, ExistentialQuantification, ScopedTypeVariables #-}
+{-# LANGUAGE GADTSyntax, ExistentialQuantification #-}
 
 module Foldl where
 
